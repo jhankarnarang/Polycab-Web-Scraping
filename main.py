@@ -1,161 +1,125 @@
 from bs4 import BeautifulSoup
 import requests
 import csv
+import os
 
 
-csv_file = open('Wires&Cables.csv','w')
-csv_writer = csv.writer(csv_file)
-csv_writer.writerow(['Product Name','Image Links','Product Description'])
 
-source = requests.get('https://polycab.com/')
-soup = BeautifulSoup(source.content, 'lxml')
-for links in soup.find_all('div',class_='wpb_text_column wpb_content_element'): 
-    
-    
-    try:  
-        link = links.a['href']
-        print(link)   
-        print('')
-    except:
-        print('')
-        
-    #--Wires & Cables
-    wires_source = requests.get(link)
-    wires_soup = BeautifulSoup(wires_source.content, 'lxml')
-    for img in wires_soup.find_all('div',class_='wire-box wpb_column vc_column_container vc_col-sm-6'):
-        
-        image = img.figure.div.img['nitro-lazy-src']
-        name = img.h4.span.text
-        desc = img.p.text
-        print(f' Name - {name}  \nImage Link  - {image}\nDesc. - {desc} ' ' ')
-        csv_writer.writerow([name,image,desc])
+def get_last_page(page):
 
-    for img in wires_soup.find_all('div',class_='wpb_column vc_column_container vc_col-sm-6'):
-        image = img.figure.div.img['nitro-lazy-src']
-        name = img.h4.span.text
-        desc = img.p.text
-        print(f'Name - {name}  \nImage Link  - {image}\nDesc. - {desc}  ')
-        csv_writer.writerow([name,image,desc])
+    pages = page.find('div', class_ = 'pager')
 
+    try:
+        last_page = pages.find('li', class_ = 'last-page').a['data-page']
+    except Exception as e:
+        try:
+            last_page = page.find_all('li', class_ = 'individual-page')[-1].a['data-page']
+        except IndexError:
+            last_page = '1'
 
-    #----SWITCHES----
-    switch_source = requests.get(link)
-    switch_soup = BeautifulSoup(switch_source.content, 'lxml')
-    for img in switch_soup.find_all('div',class_='luminate-box wpb_column vc_column_container vc_col-sm-4'): 
-        link = img.a['href']
-        if "https://polycab.com" not in link:
-            link1 = (f'https://polycab.com{link}')
-            
-            switch_source1 = requests.get(link1).text
-            switch_soup1 = BeautifulSoup(switch_source1, 'lxml')
-            switch_main1 = switch_soup1.find('div',class_='post_content')
-            
-                
-            for img in switch_main1.find_all('div',class_='product_data wpb_column vc_column_container vc_col-sm-4'): 
-                link2 = img.a['href']
-                link3 = (f'https://polycab.com{link2}')
-                print(link3)
-                switch_source2 = requests.get(link3)
-                switch_soup2 = BeautifulSoup(switch_source2.content, 'lxml')
-                switch_main2 = switch_soup2.find('div',class_='post_content')
+    return last_page
 
-                for src in switch_main2.find('div',class_='wpb_column vc_column_container vc_col-sm-12'):
-                    try:
-                        for info in switch_main2.find_all('div',class_='wpb_column vc_column_container vc_col-sm-4'):
-                            img = info.figure.div.img['nitro-lazy-src']
-                            name = info.div.span.text
-                            print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                            
-                    except:
-                        print('')
-                    try:
-                        for info in switch_main2.find_all('div',class_='luminate-box wpb_column vc_column_container vc_col-sm-4'):
-                            img1 = info.figure.div.img['nitro-lazy-src']
-                            name = info.div.span.text
-                            print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                    except:
-                        print('')
+def scrape(url, use_utf_8):
+    source = requests.get(url)
+    page = BeautifulSoup(source.content, 'lxml')
 
-                        #--SOCKETS
-                    try:
-                        for info in switch_main2.find_all('div',class_='luminate-box wpb_column vc_column_container vc_col-sm-3'):
-                            img2 = info.figure.div.img['nitro-lazy-src']
-                            name = info.div.span.text
-                            print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                    except:
-                        print('')
+    try:
+        categories_list = page.find('div', class_ = 'categories-list')
 
-                    try:
-                        for info in switch_main2.find_all('div',class_='wpb_column vc_column_container vc_col-sm-3'):
-                            img3 = info.figure.div.img['nitro-lazy-src']
-                            name = info.div.span.text
-                            print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                    except:
-                        print('')
+        for li in categories_list.find_all('li'):
+            print(f'https://www.jaquar.com{li.h2.a["href"]}')
+            scrape(f'https://www.jaquar.com{li.h2.a["href"]}', use_utf_8)
 
+    except Exception as e:
+        print(url)
+        FILTER = '#/pageSize=12&orderBy=0&pageNumber='
+        first_page = '1'
+        item_source = requests.get(url+FILTER+first_page)
+        item_page = BeautifulSoup(item_source.content, 'lxml')
+        last_page = get_last_page(page)
 
-            for img in switch_main1.find_all('div',class_='wpb_column vc_column_container vc_col-sm-4'): 
-                
+        dir = f'./data'
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+
+        file_path = f'{dir}/{url.replace("https://www.jaquar.com/en/", "")}.csv'
+
+        if use_utf_8:
+            csv_file = open(file_path, 'w', newline='', encoding="utf-8")   # otherwise it will throw error for symbols like ₹ on windows
+        else:
+            csv_file = open(file_path, 'w')
+
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['url', 'name', 'code', 'description', 'mrp', 'image'])
+
+        for pg in range(1, int(last_page) + 1):
+            print(f'{pg}/{last_page}')
+            item_source = requests.get(url+FILTER+str(pg))
+            item_page = BeautifulSoup(item_source.content, 'lxml')
+
+            try:
+                item_box = page.find_all('li', class_='item-box')
+            except Exception as e:
+                break
+
+            for item in item_box:
                 try:
-                    link5 = img.a['href']
-                    link4 = (f'https://polycab.com{link5}')
-                    print(link3)
-                    print('--------------------------------------------------------------------------------------------------------------------------------------')
-                
-                
-                    switch_source3 = requests.get(link4)
-                    switch_soup3 = BeautifulSoup(switch_source3.content, 'lxml')
-                    switch_main3 = switch_soup3.find('div',class_='post_content')
+                    href = item.find('h2', class_ = 'product-title').a['href']
+                except Exception as e:
+                    href = ''
+                    break
 
-                    for src in switch_main3.find('div',class_='wpb_column vc_column_container vc_col-sm-12'):
-                        try:
-                            for info in switch_main2.find_all('div',class_='wpb_column vc_column_container vc_col-sm-4'):
-                                img = info.figure.div.img['nitro-lazy-src']
-                                name = info.div.span.text
-                                print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                                
-                        except:
-                            print('')
-                        try:
-                            for info in switch_main3.find_all('div',class_='luminate-box wpb_column vc_column_container vc_col-sm-4'):
-                                img1 = info.figure.div.img['nitro-lazy-src']
-                                name = info.div.span.text
-                                print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                        except:
-                            print('')
+                item_url = f'https://www.jaquar.com{href}'
+                print(item_url)
 
-                            #--SOCKETS
-                        try:
-                            for info in switch_main3.find_all('div',class_='luminate-box wpb_column vc_column_container vc_col-sm-3'):
-                                img2 = info.figure.div.img['nitro-lazy-src']
-                                name = info.div.span.text
-                                print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                        except:
-                            print('')
+                try:
+                    code = item.find('div', class_ = 'product-code sku').span.text
+                except Exception as e:
+                    code = ''
 
-                        try:
-                            for info in switch_main3.find_all('div',class_='wpb_column vc_column_container vc_col-sm-3'):
-                                img3 = info.figure.div.img['nitro-lazy-src']
-                                name = info.div.span.text
-                                print(f'Product_Name - {name}  \nProduct_Img - {img}')
-                        except:
-                            print('')
-                except:
-                    print('')
-            
+                try:
+                    mrp = item.find('span', class_ = 'price actual-price').text
+                except Exception as e:
+                    mrp = ''
 
-        else:    
-            print(f'Switch Link - {link}  ')
-        
+                try:
+                    item_source = requests.get(item_url).text
+                    item_page = BeautifulSoup(item_source, 'lxml')
+                except Exception as e:
+                    break
+
+                try:
+                    name = item_page.find('div', class_ = 'detail-header').h1.text
+                except Exception as e:
+                    name = ''
+
+                try:
+                    description = item_page.find('div', class_ = 'shortDdiv').find_next('span').find_next('span').text
+                except Exception as e:
+                    description = ''
+
+                try:
+                    img = item_page.find('img', class_ = 'container-image')['src']
+                except Exception as e:
+                    img = ''
+                csv_writer.writerow([item_url, name, code, description, mrp, img])
+
+        csv_file.close()
 
 
+if __name__ == '__main__':
 
-        
-                
-           
+    '''
+    usage:
+    -> check if url is correct
+    -> run
+    '''
 
-    
-    
-        
+    url = 'https://www.jaquar.com/en/jaquar-products'
 
-        
+    if os.name == 'posix':
+        use_utf_8 = False
+    else:
+        use_utf_8 = True
+
+    scrape(url, use_utf_8)
